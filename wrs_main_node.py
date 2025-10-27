@@ -19,6 +19,8 @@ from detector_msgs.srv import (
     GetObjectDetection, GetObjectDetectionRequest)
 from wrs_algorithm.util import omni_base, whole_body, gripper
 import math
+import time
+import numpy
 
 
 class WrsMainController(object):
@@ -38,6 +40,12 @@ class WrsMainController(object):
         # 変数の初期化
         self.instruction_list = []
         self.detection_list   = []
+
+        self.start = time.time()
+        self.task1_timelim = self.start + 900
+        self.task2_timelim = self.start + 1200
+        self.timestamp = numpy.array([self.start], dtype=float)
+        self.task1_ave = None
 
         # configファイルの受信
         self.coordinates = self.load_json(self.get_path(["config", "coordinates.json"]))
@@ -540,11 +548,24 @@ class WrsMainController(object):
         # self.execute_task2a()
         # self.execute_task2b()
 
+    def continue_task1(self):
+        end = time.time()
+        self.timestamp.append(end - self.timestamp[-1])
+        if self.task1_ave is None:
+            return True
+        
+        self.task1_ave = self.timestamp[1:].mean()
+        if end + self.task1_ave * 2 >= self.task1_timelim:
+            return False
+        else:
+            return True
+
 
 def main():
     """
     WRS環境内でタスクを実行するためのメインノードを起動する
     """
+    start = time.time()
     rospy.init_node('main_controller')
     try:
         ctrl = WrsMainController()
