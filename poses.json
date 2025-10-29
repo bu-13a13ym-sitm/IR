@@ -79,5 +79,51 @@
         "wrist_roll_joint": 0.0,
         "head_tilt_joint": 0.0,
         "head_pan_joint": 0.0
+    },
+
+    "put_in_drawer_left": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": 0.0,
+        "arm_roll_joint": 0.0,
+        "wrist_flex_joint": 0.0,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": 0.0,
+        "head_pan_joint": 0.0
+    },
+    "put_in_drawer_bottom": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": 0.0,
+        "arm_roll_joint": 0.0,
+        "wrist_flex_joint": 0.0,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": 0.0,
+        "head_pan_joint": 0.0
+    },
+    "put_on_tray": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": -1.0,
+        "arm_roll_joint": 0.0,
+        "wrist_flex_joint": -0.57,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": 0.0,
+        "head_pan_joint": 0.0
+    },
+    "put_in_container": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": -1.0,
+        "arm_roll_joint": 0.0,
+        "wrist_flex_joint": -0.57,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": 0.0,
+        "head_pan_joint": 0.0
+    },
+    "look_at_long_table_r": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": 0.0,
+        "arm_roll_joint": -1.57,
+        "wrist_flex_joint": -1.57,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": -0.9,
+        "head_pan_joint": 0.3
     }
 }

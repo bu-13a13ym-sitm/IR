@@ -20,7 +20,7 @@ from detector_msgs.srv import (
 from wrs_algorithm.util import omni_base, whole_body, gripper
 import math
 import time
-import numpy
+import numpy as np
 
 
 class WrsMainController(object):
@@ -44,12 +44,25 @@ class WrsMainController(object):
         self.start = time.time()
         self.task1_timelim = self.start + 900
         self.task2_timelim = self.start + 1200
-        self.timestamp = numpy.array([self.start], dtype=float)
+        self.timestamp = np.array([self.start], dtype=float)
         self.task1_ave = None
 
         # configファイルの受信
         self.coordinates = self.load_json(self.get_path(["config", "coordinates.json"]))
         self.poses       = self.load_json(self.get_path(["config", "poses.json"]))
+
+        itemLabels = self.load_json(self.get_path(["config", "itemLabels.json"]))["itemLabels"]
+        self.shape = itemLabels["shape"]
+        self.tool = itemLabels["tool"]
+        self.food = itemLabels["food"]
+        self.kitchen = itemLabels["kitchen"]
+        self.task = itemLabels["task"]
+
+        self.grasp_try_cnt = {}
+        self.trayA_cnt = 0
+
+        self.__class__.IGNORE_LIST.extend(self.shape)
+        self.__class__.IGNORE_LIST.extend(self.tool)
 
         # ROS通信関連の初期化
         tf_from_bbox_srv_name = "set_tf_from_bbox"
@@ -356,10 +369,10 @@ class WrsMainController(object):
         pos_y+=self.HAND_PALM_OFFSET
 
         # 予備動作-押し込む
-        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose( pos_x, pos_y +    self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
         gripper.command(0)
-        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
-        whole_body.move_end_effector_pose(pos_x, pos_y, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(  pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(            pos_x, pos_y, pos_z, yaw, pitch, roll)
 
         self.change_pose("all_neutral")
 
@@ -464,17 +477,19 @@ class WrsMainController(object):
     def execute_task1(self):
         """
         task1を実行する
-        """
+        """        
         rospy.loginfo("#### start Task 1 ####")
         hsr_position = [
             ("tall_table", "look_at_tall_table"),
-            # ("near_long_table_l", "look_at_near_floor"),
-            # ("long_table_r", "look_at_tall_table"),
+            ("near_long_table_l", "look_at_near_floor"),
+            ("long_table_r", "look_at_long_table_r"),
         ]
 
         total_cnt = 0
         for plc, pose in hsr_position:
-            for _ in range(self.DETECT_CNT):
+            while True:
+                if not self.continue_task1():
+                    return
                 # 移動と視線指示
                 self.goto_name(plc)
                 self.change_pose(pose)
@@ -486,17 +501,51 @@ class WrsMainController(object):
 
                 if graspable_obj is None:
                     rospy.logwarn("Cannot determine object to grasp. Grasping is aborted.")
-                    continue
+                    break
+
                 label = graspable_obj["label"]
                 grasp_bbox = graspable_obj["bbox"]
                 # TODO ラベル名を確認するためにコメントアウトを外す
-                # rospy.loginfo("grasp the " + label)
+                rospy.loginfo("grasp the " + label)
+                if label in self.grasp_try_cnt.keys():
+                    self.grasp_try_cnt[label] += 1
+                    if self.grasp_try_cnt[label] > 3:
+                        self.__class__.IGNORE_LIST.append(label)
+                        continue
+                else:
+                    self.grasp_try_cnt[label] = 0
 
                 # 把持対象がある場合は把持関数実施
                 grasp_pos = self.get_grasp_coordinate(grasp_bbox)
                 self.change_pose("grasp_on_table")
                 self.exec_graspable_method(grasp_pos, label)
                 self.change_pose("all_neutral")
+
+                if label in self.shape:
+                    self.put_in_place("bin_b_place", "put_in_bin")
+                    pass
+                    self.put_in_place("drawer", "put_in_drawer_left")
+                elif label in self.tool:
+                    self.put_in_place("bin_b_place", "put_in_bin")
+                    pass
+                    self.put_in_place("drawer", "put_in_drawer_bottom")
+                elif label in self.food:
+                    if label in self.grasp_try_cnt.keys():
+                        self.trayA_cnt -= 1
+                    if self.trayA_cnt < 3:
+                        self.put_in_place("long_table_r_trayA", "put_on_tray")
+                    else:
+                        self.put_in_place("long_table_r_trayB", "put_on_tray")
+                    self.trayA_cnt += 1
+                elif label in self.kitchen:
+                    self.put_in_place("long_table_r_containerA", "put_in_container")
+                elif label in self.task:
+                    self.put_in_place("bin_a_place", "put_in_bin")
+                else:
+                    self.put_in_place("bin_b_place", "put_in_bin")
+                total_cnt += 1
+
+                continue
 
                 # binに入れる
                 if total_cnt % 2 == 0:  self.put_in_place("bin_a_place", "put_in_bin")
@@ -545,12 +594,12 @@ class WrsMainController(object):
         """
         self.change_pose("all_neutral")
         self.execute_task1()
-        # self.execute_task2a()
-        # self.execute_task2b()
+        self.execute_task2a()
+        self.execute_task2b()
 
     def continue_task1(self):
         end = time.time()
-        self.timestamp.append(end - self.timestamp[-1])
+        np.append(self.timestamp, end - self.timestamp[-1])
         if self.task1_ave is None:
             return True
         
@@ -565,7 +614,6 @@ def main():
     """
     WRS環境内でタスクを実行するためのメインノードを起動する
     """
-    start = time.time()
     rospy.init_node('main_controller')
     try:
         ctrl = WrsMainController()

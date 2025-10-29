@@ -1,0 +1,70 @@
+{
+    "itemLabels": {
+        "shape": [
+            "credit_card_blank",
+            "mini_soccer_ball",
+            "softball",
+            "baseball",
+            "tennis_ball",
+            "racquetball",
+            "golf_ball",
+            "marble",
+            "cup",
+            "foam_brick",
+            "dice",
+            "rope",
+            "chain"
+        ],
+        "tool": [
+            "large_marker",
+            "small_marker",
+            "padlock",
+            "bolt_and_nut",
+            "clamp"
+        ],
+        "food": [
+            "cracker_box",
+            "sugar_box",
+            "pudding_box",
+            "gelatin_box",
+            "potted_meat_can",
+            "master_chef_can",
+            "tuna_fish_can",
+            "chips_can",
+            "mustard_bottle",
+            "tomato_soup_can",
+            "banana",
+            "strawberry",
+            "apple",
+            "lemon",
+            "peach",
+            "pear",
+            "orange",
+            "plum"
+        ],
+        "kitchen": [
+            "windex_bottle",
+            "bleach_cleanser",
+            "sponge",
+            "pitcher_base",
+            "pitcher_lid",
+            "plate",
+            "bowl",
+            "fork",
+            "spoon",
+            "spatula",
+            "wine_glass",
+            "mug"
+        ],
+        "task": [
+            "rubiks_cube",
+            "colored_wood_block",
+            "nine_hole_peg_test",
+            "toy_airplane",
+            "lego_duplo",
+            "magazine",
+            "black_t_shirt",
+            "timer"
+        ]
+    }
+}
