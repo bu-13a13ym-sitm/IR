@@ -239,6 +239,7 @@ class WrsMainController(object):
         #TODO: 関数は未完成です。引数のinstructionを利用すること
         rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction)
 
+        # 物体名のキーワードリスト
         OBJECT_KEYWORDS = [
             "cheez-it", "sugar", "chocolate", "gelatin", "meat", "coffee", "tuna", 
             "pringles", "mustard", "soup", "banana", "strawberry", "apple", "lemon",
@@ -260,6 +261,12 @@ class WrsMainController(object):
             if keyword in processed_instruction:
                 target_person = keyword
                 break
+
+        # target_personの名称を統一
+        if target_person == "left":
+            target_person = "person_a"
+        elif target_person == "right":
+            target_person = "person_b"
         
         if target_obj is None:
             rospy.logwarn("  -> WARNING: Could not extract target object.")
@@ -412,7 +419,7 @@ class WrsMainController(object):
 
         # target_personの前に持っていく
         self.change_pose("look_at_near_floor")
-        self.goto_name("person_b")    # TODO: 配達先が固定されているので修正
+        self.goto_name(target_person)    # TODO: 配達先が固定されているので修正
         self.change_pose("deliver_to_human")
         rospy.sleep(10.0)
         gripper.command(1)
