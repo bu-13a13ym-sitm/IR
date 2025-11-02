@@ -239,7 +239,11 @@ class WrsMainController(object):
         #TODO: 関数は未完成です。引数のinstructionを利用すること
         rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction)
 
-        OBJECT_KEYWORDS = ["apple", "banana", "cup", "frisbee", "bowl", "book", "bottle", "lemon", "sugar"]
+        OBJECT_KEYWORDS = [
+            "cheez-it", "sugar", "chocolate", "gelatin", "meat", "coffee", "tuna", 
+            "pringles", "mustard", "soup", "banana", "strawberry", "apple", "lemon",
+            "peach", "pear", "plum", "orange", 
+        ]
         PERSON_KEYWORDS = ["left", "right"]
 
         target_obj = None
