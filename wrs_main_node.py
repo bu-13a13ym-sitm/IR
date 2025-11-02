@@ -238,8 +238,29 @@ class WrsMainController(object):
         """
         #TODO: 関数は未完成です。引数のinstructionを利用すること
         rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction)
-        target_obj    = "apple"
-        target_person = "right"
+
+        OBJECT_KEYWORDS = ["apple", "banana", "cup", "frisbee", "bowl", "book", "bottle", "lemon", "sugar"]
+        PERSON_KEYWORDS = ["left", "right"]
+
+        target_obj = None
+        target_person = None
+
+        processed_instruction = instruction.lower()
+
+        for keyword in OBJECT_KEYWORDS:
+            if keyword in processed_instruction:
+                target_obj = keyword
+                break
+
+        for keyword in PERSON_KEYWORDS:
+            if keyword in processed_instruction:
+                target_person = keyword
+                break
+        
+        if target_obj is None:
+            rospy.logwarn("  -> WARNING: Could not extract target object.")
+        if target_person is None:
+            rospy.logwarn("  -> WARNING: Could not extract target person.")
 
         return target_obj, target_person
 
@@ -401,7 +422,7 @@ class WrsMainController(object):
             pos_bboxes = [self.get_grasp_coordinate(bbox) for bbox in bboxes]
             waypoint = self.select_next_waypoint(i, pos_bboxes)
             # TODO メッセージを確認するためコメントアウトを外す
-            # rospy.loginfo(waypoint)
+            rospy.loginfo(waypoint)
             self.goto_pos(waypoint)
 
     def select_next_waypoint(self, current_stp, pos_bboxes):
