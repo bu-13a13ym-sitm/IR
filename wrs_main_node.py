@@ -38,15 +38,7 @@ class WrsMainController(object):
     """
     WRSのシミュレーション環境内でタスクを実行するクラス
     """
-    IGNORE_LIST = [
-        "small_marker",
-        "large_marker",
-        "lego_duplo",
-        "spatula",
-        "nine_hole_peg_test",
-        "fork",
-        "unknown"
-        ]
+    IGNORE_LIST = []
     GRASP_TF_NAME = "object_grasping"
     GRASP_BACK_SAFE = {"z": 0.05, "xy": 0.3}
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
@@ -344,7 +336,7 @@ class WrsMainController(object):
             # bowlの張り付き対策
             method = self.grasp_from_upper_side
             if label == "bowl":
-                grasp_pos.x -= 0.2
+                grasp_pos.x -= 0.05
         else:
             if desk_y < grasp_pos.y and desk_z > grasp_pos.z:
                 # 机の下である場合
