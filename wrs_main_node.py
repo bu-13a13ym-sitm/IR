@@ -265,12 +265,41 @@ class WrsMainController(object):
         target_obj = None
         target_person = None
 
+        OBJECT_ID_MAPPING = {
+            "cheez-it": "cheez_it_box",
+            "sugar": "sugar_box",
+            "chocolate": "pudding_box",
+            "gelatin": "gelatin_box",
+            "meat": "potted_meat_can",
+            "coffee": "master_chef_can",
+            "tuna": "tuna_fish_can",
+            "pringles": "chips_can",
+            "mustard": "mustard_bottle",
+            "soup": "tomato_soup_can",
+            "banana": "banana",
+            "strawberry": "strawberry",
+            "apple": "apple",
+            "lemon": "lemon",
+            "peach": "peach",
+            "pear": "pear",
+            "plum": "plum",
+            "orange": "orange",
+        }
+
         processed_instruction = instruction.lower()
 
         for keyword in OBJECT_KEYWORDS:
             if keyword in processed_instruction:
                 target_obj = keyword
                 break
+
+        # 2. 抽出されたキーワードを実際の物体IDに変換
+        if target_obj in OBJECT_ID_MAPPING:
+            # 実際のロボットの認識ID（例: "potted_meat_can"）に置き換える
+            final_object_id = OBJECT_ID_MAPPING[target_obj]
+        else:
+            # マッピングにない場合は抽出されたキーワードをそのまま利用するか、エラー処理を行う
+            final_object_id = target_obj
 
         for keyword in PERSON_KEYWORDS:
             if keyword in processed_instruction:
@@ -288,7 +317,7 @@ class WrsMainController(object):
         if target_person is None:
             rospy.logwarn("  -> WARNING: Could not extract target person.")
 
-        return target_obj, target_person
+        return final_object_id, target_person
 
     def grasp_from_side(self, pos_x, pos_y, pos_z, yaw, pitch, roll, preliminary="-y"):
         """
