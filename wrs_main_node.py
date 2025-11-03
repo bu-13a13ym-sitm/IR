@@ -21,6 +21,17 @@ from wrs_algorithm.util import omni_base, whole_body, gripper
 import math
 import time
 import numpy as np
+import math
+from geometry_msgs.msg import Point
+import heapq
+
+GRID_SIZE = 20                  # グリッドの分割数 (10x10)
+X_MIN = 2.2                    # 障害物エリアの最小X座標 (環境依存)
+X_MAX = 2.9                     # 障害物エリアの最大X座標 (環境依存)
+Y_MIN = 2.0                     # 障害物エリアの最小Y座標 (standby_2aのYと仮定)
+Y_MAX = 3.3                     # 障害物エリアの最大Y座標 (go_throw_2aの手前Yと仮定)
+ROBOT_RADIUS = 0.1 / 2         # ロボットの半幅（安全距離のベース）
+OBJECT_INFLATION = 0.01
 
 
 class WrsMainController(object):
@@ -428,62 +439,308 @@ class WrsMainController(object):
             # rospy.loginfo(waypoint)
             self.goto_pos(waypoint)
 
-    def select_next_waypoint(self, current_stp, pos_bboxes):
+    def _calculate_yaw(self, start_x, start_y, target_x, target_y):
         """
-        waypoints から近い場所にあるものを除外し、最適なwaypointを返す。
-        x座標を原点に近い方からxa,xb,xcに定義する。bboxを判断基準として移動先を決定する(デフォルトは0.45間隔)
-        pos_bboxesは get_grasp_coordinate() 済みであること
+        開始点と目標点から、目標方向へのYaw角（度数）を計算する。
         """
-        interval = 0.45
-        pos_xa = 1.7
-        pos_xb = pos_xa + interval
-        pos_xc = pos_xb + interval
+        delta_x = target_x - start_x
+        delta_y = target_y - start_y
+        
+        # atan2でラジアンを計算
+        rad = math.atan2(delta_y, delta_x)
+        
+        # 度数に変換
+        yaw_degrees = math.degrees(rad)
+        
+        return yaw_degrees
 
-        # xa配列はcurrent_stpに関係している
-        waypoints = {"xa": [ [pos_xa, 2.5, 45],[pos_xa, 2.9, 45],[pos_xa, 3.3, 90] ], "xb": [ [pos_xb, 2.5, 90], [pos_xb, 2.9, 90], [pos_xb, 3.3, 90] ],
-            "xc": [ [pos_xc, 2.5, 135],   [pos_xc, 2.9, 135],  [pos_xc, 3.3, 90 ]]
-        }
+    def _create_cost_map(self, pos_bboxes):
+        """
+        10x10のコストマップを生成し、各ブロックのコストを返す。
+        コストはオブジェクトからの距離の逆数（近いほど高コスト）。
+        """
+        cost_map = np.zeros((GRID_SIZE, GRID_SIZE))
+        grid_res_x = (X_MAX - X_MIN) / GRID_SIZE
+        grid_res_y = (Y_MAX - Y_MIN) / GRID_SIZE
+        
+        # 検出されたオブジェクト座標をPointオブジェクトのリストとして使用
+        obj_points = [[p.x, p.y] for p in pos_bboxes]
 
-        # posがxa,xb,xcのラインに近い場合は候補から削除
-        is_to_xa = True
-        is_to_xb = True
-        is_to_xc = True
-        for bbox in pos_bboxes:
-            pos_x = bbox.x
-            # TODO デバッグ時にコメントアウトを外す
-            # rospy.loginfo("detected object obj.x = {:.2f}".format(bbox.x))
+        for i in range(GRID_SIZE):  # Y軸 (行)
+            for j in range(GRID_SIZE):  # X軸 (列)
+                center_x = X_MIN + (j + 0.5) * grid_res_x
+                center_y = Y_MIN + (i + 0.5) * grid_res_y
+                
+                min_dist = float('inf')
+                
+                for obj_x, obj_y in obj_points:
+                    dist = math.sqrt((center_x - obj_x)**2 + (center_y - obj_y)**2)
+                    min_dist = min(min_dist, dist)
+                
+                # コストの計算: オブジェクトに近いほど高コスト
+                # 安全距離内にオブジェクトがある場合は非常に高い衝突コスト (A*で確実に回避させる)
+                if min_dist < ROBOT_RADIUS + OBJECT_INFLATION:
+                    cost_map[i, j] = 1000.0  # 衝突リスクあり (高コスト)
+                else:
+                    # 距離の逆数を使用 (遠いほど低コスト)
+                    # 0除算やオーバーフローを避けるために分母をチェック
+                    denominator = min_dist - (ROBOT_RADIUS + OBJECT_INFLATION)
+                    if denominator <= 0.05: # 安全距離からごく近い場合
+                         cost_map[i, j] = 50.0 
+                    else:
+                         cost_map[i, j] = 1.0 / denominator 
+                         
+        return cost_map, grid_res_x, grid_res_y
 
-            # NOTE Hint:ｙ座標次第で無視してよいオブジェクトもある。
-            if pos_x < pos_xa + (interval/2):
-                is_to_xa = False
-                # rospy.loginfo("is_to_xa=False")
-                continue
-            elif pos_x < pos_xb + (interval/2):
-                is_to_xb = False
-                # rospy.loginfo("is_to_xb=False")
-                continue
-            elif pos_x < pos_xc + (interval/2):
-                is_to_xc = False
-                # rospy.loginfo("is_to_xc=False")
-                continue
+    # Helper function to convert grid index (i, j) to map coordinates (x, y)
+    def _grid_to_map(self, i, j, grid_res_x, grid_res_y):
+        x = X_MIN + (j + 0.5) * grid_res_x
+        y = Y_MIN + (i + 0.5) * grid_res_y
+        return x, y
 
-        x_line = None   # xa,xb,xcいずれかのリストが入る
-        # NOTE 優先的にxcに移動する
-        if is_to_xc:
-            x_line = waypoints["xc"]
-            rospy.loginfo("select next waypoint_xc")
-        elif is_to_xb:
-            x_line = waypoints["xb"]
-            rospy.loginfo("select next waypoint_xb")
-        elif is_to_xa:
-            x_line = waypoints["xa"]
-            rospy.loginfo("select next waypoint_xa")
-        else:
-            # a,b,cいずれにも移動できない場合
-            x_line = waypoints["xb"]
-            rospy.loginfo("select default waypoint")
+    # Helper function to convert map coordinates (x, y) to grid index (i, j)
+    def _map_to_grid(self, x, y, grid_res_x, grid_res_y):
+        if not (X_MIN <= x <= X_MAX and Y_MIN <= y <= Y_MAX):
+            return None, None
+        j = int((x - X_MIN) / grid_res_x)
+        i = int((y - Y_MIN) / grid_res_y)
+        # Ensure indices are within bounds
+        j = np.clip(j, 0, GRID_SIZE - 1)
+        i = np.clip(i, 0, GRID_SIZE - 1)
+        return i, j
+    
+    def _find_safest_path(self, cost_map, grid_res_x, grid_res_y, start_x):
+        """
+        コストマップ上で、各Y行（i）で最低コストのブロックを選び、最終経路を決定する（貪欲法）。
+        """
+        waypoints = []
+        
+        # スタートグリッドインデックスを取得
+        _, start_j = self._map_to_grid(start_x, Y_MIN, grid_res_x, grid_res_y)
+        current_j = start_j if start_j is not None else GRID_SIZE // 2
+        
+        # 最初のY行はスタート位置のX座標に近い低コストなブロックを選ぶ
+        
+        for i in range(GRID_SIZE):  # Y軸をY_MINからY_MAXへ進む
+            min_cost = float('inf')
+            best_j = -1
+            
+            # 探索ウィンドウ（移動の滑らかさのために、現在のXから大きく離れない範囲）
+            search_min_j = max(0, current_j - 2)
+            search_max_j = min(GRID_SIZE - 1, current_j + 2)
+            
+            # 最低コストのブロックを選択
+            for j in range(search_min_j, search_max_j + 1): # X軸をスキャン
+                
+                # 滑らかさ（移動コスト）を加味
+                travel_cost = abs(j - current_j) * 0.5 # X軸移動が大きいほどペナルティ
+                total_cost = cost_map[i, j] + travel_cost
+                
+                if total_cost < min_cost:
+                    min_cost = total_cost
+                    best_j = j
+                    
+            if best_j == -1:
+                rospy.logwarn(f"No safe or reachable block found in row Y={i}. Using current X.")
+                # 経路が見つからなかった場合、現在のXを維持してY軸を強制的に進める
+                best_j = current_j
+                
+            # ウェイポイントを追加
+            map_x, map_y = self._grid_to_map(i, best_j, grid_res_x, grid_res_y)
+            waypoints.append([map_x, map_y])
+            current_j = best_j
 
-        return x_line[current_stp]
+        # 最終目標点を追加（最後のX座標を維持）
+        waypoints.append([waypoints[-1][0], Y_MAX])
+        
+        return waypoints
+    
+    # A*探索のためのヒューリスティック関数
+
+    def _get_heuristic(self, x1, y1, x2, y2):
+        """
+        ヒューリスティックコスト (h): ノード(x1, y1)からゴール(x2, y2)までのユークリッド距離
+        """
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+    def _find_optimal_path(self, cost_map, grid_res_x, grid_res_y, start_x):
+        """
+        コストマップ上でA*探索を実行し、スタートからゴールまでの最適経路を返す。
+        """
+        rospy.loginfo("Starting A* search...")
+        
+        # ゴール座標（Y_MAXの中央X）
+        # Y_MAXは障害物エリアの境界なので、ゴールセルはY_MAXに近いセルの中央とする
+        goal_y_index = GRID_SIZE - 1
+        
+        # スタートノードの特定
+        start_i, start_j = self._map_to_grid(start_x, Y_MIN, grid_res_x, grid_res_y)
+        if start_i is None or start_j is None:
+            rospy.logerr("Start coordinate is outside the map boundary.")
+            return []
+            
+        start_node = (start_i, start_j)
+
+        # ゴールノードの決定 (マップの最奥Y行で、最もコストの低いセルを仮のゴールとする)
+        min_goal_cost = float('inf')
+        best_goal_j = start_j # ゴールがない場合はスタートと同じX座標を維持
+        
+        for j in range(GRID_SIZE):
+            if cost_map[goal_y_index, j] < min_goal_cost:
+                min_goal_cost = cost_map[goal_y_index, j]
+                best_goal_j = j
+                
+        goal_node = (goal_y_index, best_goal_j)
+        
+        goal_x, goal_y = self._grid_to_map(goal_node[0], goal_node[1], grid_res_x, grid_res_y)
+
+        # A*に必要なデータ構造の初期化
+        # priority queue: (f_cost, i, j)
+        open_list = [(0.0, start_i, start_j)]
+        
+        # g_cost[i][j]: スタートからノード(i, j)までの最小累積コスト
+        g_cost = np.full((GRID_SIZE, GRID_SIZE), float('inf'))
+        g_cost[start_i, start_j] = 0.0
+        
+        # parent[i][j]: 最適経路を再構築するための親ノード (pi, pj)
+        parent = {}
+        
+        # 8方向移動の定義 (di, dj)
+        # 上, 下, 左, 右, 左上, 右上, 左下, 右下
+        movements = [(-1, 0), (1, 0), (0, -1), (0, 1), 
+                     (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        
+        # A*メインループ
+        while open_list:
+            f_cost, i, j = heapq.heappop(open_list)
+            current_node = (i, j)
+
+            # ゴールに到達したら終了
+            if current_node == goal_node:
+                rospy.loginfo("A* path found.")
+                break
+
+            # 隣接ノードの探索
+            for di, dj in movements:
+                ni, nj = i + di, j + dj
+                neighbor_node = (ni, nj)
+                
+                # 境界チェック
+                if not (0 <= ni < GRID_SIZE and 0 <= nj < GRID_SIZE):
+                    continue
+
+                # 移動コスト計算 (斜めはルート2倍)
+                move_distance = math.sqrt(di**2 + dj**2)
+                
+                # 隣接ノードの障害物コストを取得
+                obstacle_cost = cost_map[ni, nj]
+                
+                # 障害物コストが高い（衝突リスク）なら、経路として使用しない
+                if obstacle_cost >= 1000: # 1000は_create_cost_mapで設定した衝突リスクのコスト
+                    continue 
+
+                # g(n') = g(n) + move_cost
+                new_g_cost = g_cost[i, j] + move_distance + obstacle_cost
+                
+                # より良い経路が見つかった場合
+                if new_g_cost < g_cost[ni, nj]:
+                    # gコストを更新
+                    g_cost[ni, nj] = new_g_cost
+                    
+                    # 親ノードを記録
+                    parent[neighbor_node] = current_node
+                    
+                    # hコストを計算
+                    nx, ny = self._grid_to_map(ni, nj, grid_res_x, grid_res_y)
+                    h_cost = self._get_heuristic(nx, ny, goal_x, goal_y)
+                    
+                    # fコストを計算
+                    new_f_cost = new_g_cost + h_cost
+                    
+                    # Open Listに追加
+                    heapq.heappush(open_list, (new_f_cost, ni, nj))
+
+        # 経路の再構築
+        if current_node != goal_node:
+            rospy.logwarn("A* failed to find a path to the goal.")
+            return []
+
+        waypoints = []
+        node = goal_node
+        while node in parent:
+            map_x, map_y = self._grid_to_map(node[0], node[1], grid_res_x, grid_res_y)
+            waypoints.append([map_x, map_y])
+            node = parent[node]
+            
+        # スタートノードは既にgoto_name("standby_2a")で処理されているため省略可能
+        # map_x, map_y = self._grid_to_map(start_node[0], start_node[1], grid_res_x, grid_res_y)
+        # waypoints.append([map_x, map_y])
+        
+        waypoints.reverse()
+        
+        # 最終目標点 (go_throw_2a) を追加
+        final_x, final_y, final_yaw = self.coordinates["positions"]["go_throw_2a"]
+        waypoints.append([final_x, final_y])
+
+        return waypoints
+
+    def select_next_waypoint(self, pos_bboxes):
+        """
+        壁際を避け、最も広いオブジェクト間の隙間（垂直二等分線X座標）と
+        オブジェクトをクリアした中間Y座標を返す。
+        """
+        GOAL_Y = 3.3
+        
+        # --- 1. オブジェクト間 X座標の計算（壁際の排除）---
+        
+        obj_x_list = sorted([bbox.x for bbox in pos_bboxes])
+        gaps = []
+
+        # オブジェクトが1つ以下の場合、オブジェクト間は存在しない
+        if len(obj_x_list) < 2:
+            rospy.logwarn("Only one or zero objects detected. Using default center X.")
+            if obj_x_list:
+                # 唯一のオブジェクトが存在する場合、その左右に安全な隙間があると仮定
+                # ただし、要件を満たさないため、中央を試す
+                center_x = obj_x_list[0] 
+            else:
+                # オブジェクトなしの場合
+                center_x = 2.15 
+            
+            # X, Y座標を決定せず、中間Y座標のみを計算して、最終段階でY軸移動に強制
+            return [center_x, 2.5] # X座標は仮、Y座標は中間点
+
+        # 連続するオブジェクトの中心間を結ぶ隙間のみを評価 (iとi+1の間)
+        for i in range(len(obj_x_list) - 1):
+            x1 = obj_x_list[i]
+            x2 = obj_x_list[i+1]
+            
+            gap_width = x2 - x1
+            center_x = (x1 + x2) / 2 # 垂直二等分線 X 座標
+            
+            gaps.append((gap_width, center_x))
+
+        # 最も広いオブジェクト間の隙間を選択
+        best_gap = max(gaps, key=lambda item: item[0])
+        next_waypoint_x = best_gap[1] # 垂直二等分線 X 座標
+        
+        # --- 2. オブジェクトをクリアする Y座標の計算 ---
+        SAFETY_MARGIN_Y = 0.30 
+        
+        # すべてのオブジェクトの中から最も奥のY座標を取得 (最も安全な中間Y座標を決定するため)
+        obj_y_list = [bbox.y for bbox in pos_bboxes]
+        
+        farthest_y = max(obj_y_list)
+        intermediate_y = farthest_y + SAFETY_MARGIN_Y
+        
+        # 中間Y座標はGOAL_Yを超えないようにクリップ
+        next_waypoint_y = min(intermediate_y, GOAL_Y)
+        
+        rospy.loginfo("Selected Bisector X: {:.2f} (Gap width: {:.2f}m)".format(
+            next_waypoint_x, best_gap[0]))
+        
+        # [垂直二等分線X座標, 中間Y座標] を返す (Yawは移動時に計算)
+        return [next_waypoint_x, next_waypoint_y]
 
     def execute_task1(self):
         """
@@ -573,18 +830,62 @@ class WrsMainController(object):
 
     def execute_task2a(self):
         """
-        task2aを実行する
+        task2aを実行する(A* Path Planningに基づく経路探索)
         """
-        rospy.loginfo("#### start Task 2a ####")
+        rospy.loginfo("#### start Task 2a (A* Path Planning) ####")
         self.change_pose("look_at_near_floor")
         gripper.command(0)
-        self.change_pose("look_at_near_floor")
         self.goto_name("standby_2a")
 
-        # 落ちているブロックを避けて移動
-        self.execute_avoid_blocks()
+        # 2. 障害物検出とグリッドマップの生成
+        detected_objs = self.get_latest_detection()
+        # NOTE: bboxのtf座標取得は検出結果が安定していると仮定し、ここに集中させています
+        pos_bboxes = [self.get_grasp_coordinate(bbox) for bbox in detected_objs.bboxes]
+        
+        # コストマップを生成
+        cost_map, grid_res_x, grid_res_y = self._create_cost_map(pos_bboxes)
+        
+        # 3. 最適なウェイポイントのリストをA*で取得
+        # path_waypoints: [[x1, y1], [x2, y2], ...]
+        path_waypoints = self._find_optimal_path(cost_map, grid_res_x, grid_res_y, START_X) 
+        
+        if not path_waypoints:
+            rospy.logerr("A* path planning failed. Moving to goal directly (RISKY).")
+            self.goto_name("go_throw_2a")
+            whole_body.move_to_go()
+            return
 
-        self.goto_name("go_throw_2a")
+        # 4. 経路に沿って連続移動
+        current_x = START_X
+        # standby_2a の Y 座標を現在の Y 座標として使用
+        current_y = self.coordinates["positions"]["standby_2a"][1] 
+        current_yaw = self.coordinates["positions"]["standby_2a"][2]
+
+        for i, target_point in enumerate(path_waypoints):
+            target_x, target_y = target_point
+            
+            # 最終目標点の場合、yaw は go_throw_2a のものを使用
+            if i == len(path_waypoints) - 1:
+                yaw = self.coordinates["positions"]["go_throw_2a"][2]
+            else:
+                # 目標方向へのYaw角を計算
+                yaw = self._calculate_yaw(current_x, current_y, target_x, target_y)
+            
+            # goto_pos は [x, y, yaw] のリストを期待
+            waypoint = [target_x, target_y, yaw]
+            
+            rospy.loginfo("Path Step {}: Moving to X={:.2f}, Y={:.2f}, Yaw={:.2f}".format(
+                i + 1, target_x, target_y, yaw))
+                
+            self.goto_pos(waypoint) 
+            
+            # 現在位置を更新
+            current_x, current_y, current_yaw = target_x, target_y, yaw
+
+        # 5. 最終ポーズへ (A*の経路に最終目標点が含まれているため、これで完了)
+        START_X = self.coordinates["positions"]["standby_2a"][0]
+        
+        self.change_pose("look_at_near_floor")
         whole_body.move_to_go()
 
     def execute_task2b(self):
