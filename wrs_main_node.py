@@ -27,7 +27,15 @@ class WrsMainController(object):
     """
     WRSのシミュレーション環境内でタスクを実行するクラス
     """
-    IGNORE_LIST = ["small_marker", "large_marker", "lego_duplo", "spatula", "nine_hole_peg_test"]
+    IGNORE_LIST = [
+        "small_marker",
+        "large_marker",
+        "lego_duplo",
+        "spatula",
+        "nine_hole_peg_test",
+        "fork",
+        "unknown"
+        ]
     GRASP_TF_NAME = "object_grasping"
     GRASP_BACK_SAFE = {"z": 0.05, "xy": 0.3}
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
@@ -354,7 +362,10 @@ class WrsMainController(object):
         whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw, pitch, roll)
         whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
         gripper.command(0)
-        whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw,  pitch, roll)
+        whole_body.move_end_effector_pose(
+            x, y + self.TROFAST_Y_OFFSET * 1.2 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 1.9, z,
+            yaw,  pitch, roll
+            )
         gripper.command(1)
         self.change_pose("all_neutral")
 
@@ -369,10 +380,10 @@ class WrsMainController(object):
         pos_y+=self.HAND_PALM_OFFSET
 
         # 予備動作-押し込む
-        whole_body.move_end_effector_pose( pos_x, pos_y +    self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
         gripper.command(0)
-        whole_body.move_end_effector_pose(  pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
-        whole_body.move_end_effector_pose(            pos_x, pos_y, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y, pos_z, yaw, pitch, roll)
 
         self.change_pose("all_neutral")
 
@@ -479,10 +490,16 @@ class WrsMainController(object):
         task1を実行する
         """        
         rospy.loginfo("#### start Task 1 ####")
+        """
+        self.pull_out_trofast(0.175, -0.31, 0.285, -90, 100, 0)
+        self.pull_out_trofast(0.178, -0.31, 0.565, -90, 100, 0)
+        self.pull_out_trofast(0.50, -0.35, 0.285, -90, 100, 0)
+        """
         hsr_position = [
             ("tall_table", "look_at_tall_table"),
             ("near_long_table_l", "look_at_near_floor"),
-            ("long_table_r", "look_at_long_table_r"),
+            ("floor_nearby_long_table_r", "look_at_floor_nearby_long_table_r"),
+            ("long_table_r", "look_at_long_table_r")
         ]
 
         total_cnt = 0
@@ -504,6 +521,12 @@ class WrsMainController(object):
                     break
 
                 label = graspable_obj["label"]
+                if label == "tuna_fish_can":
+                    label = "bowl"
+                elif label == "potted_meat_can":
+                    label = "lego_duplo"
+                elif label == "sugar_box":
+                    label = "rubiks_cube"
                 grasp_bbox = graspable_obj["bbox"]
                 # TODO ラベル名を確認するためにコメントアウトを外す
                 rospy.loginfo("grasp the " + label)
@@ -522,13 +545,9 @@ class WrsMainController(object):
                 self.change_pose("all_neutral")
 
                 if label in self.shape:
-                    self.put_in_place("bin_b_place", "put_in_bin")
-                    pass
                     self.put_in_place("drawer", "put_in_drawer_left")
                 elif label in self.tool:
-                    self.put_in_place("bin_b_place", "put_in_bin")
-                    pass
-                    self.put_in_place("drawer", "put_in_drawer_bottom")
+                    self.put_in_place("stair_like_drawer", "put_in_drawer_bottom")
                 elif label in self.food:
                     if label in self.grasp_try_cnt.keys():
                         self.trayA_cnt -= 1

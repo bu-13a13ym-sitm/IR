@@ -2,6 +2,7 @@
     "positions": {
         "tall_table": [-0.02, 1.0, 95],
         "long_table_r": [1.45, 1.0, 90],
+        "floor_nearby_long_table_r": [1.45, 0.6, 90],
         "near_long_table_l": [0.2, 0.4, 90],
         "drawer": [0.35, 0.2, -90],
         "stair_like_drawer":[0.178, 0.8, -90],
@@ -17,9 +18,9 @@
         "home": [0, 0.2, 0],
 
         "long_table_r_trayA": [1.82, 0.0, -90],
-        "long_table_r_trayB": [1.71, 0.0, -90],
-        "long_table_r_containerA": [1.5, 0.0, -90],
-        "long_table_r_containerB": [1.65, 0.0, -90]
+        "long_table_r_trayB": [1.63, 0.0, -90],
+        "long_table_r_containerA": [0.95, 0.0, -90],
+        "long_table_r_containerB": [1.25, 0.0, -90]
     },
     "routes": {
         "test": [
