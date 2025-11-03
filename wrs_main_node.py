@@ -343,6 +343,8 @@ class WrsMainController(object):
         if label in ["cup", "frisbee", "bowl"]:
             # bowlの張り付き対策
             method = self.grasp_from_upper_side
+            if label == "bowl":
+                grasp_pos.x -= 0.2
         else:
             if desk_y < grasp_pos.y and desk_z > grasp_pos.z:
                 # 机の下である場合
@@ -836,6 +838,9 @@ class WrsMainController(object):
         self.change_pose("look_at_near_floor")
         gripper.command(0)
         self.goto_name("standby_2a")
+        START_X = self.coordinates["positions"]["standby_2a"][0]
+        
+        self.change_pose("look_at_near_floor")
 
         # 2. 障害物検出とグリッドマップの生成
         detected_objs = self.get_latest_detection()
@@ -883,9 +888,6 @@ class WrsMainController(object):
             current_x, current_y, current_yaw = target_x, target_y, yaw
 
         # 5. 最終ポーズへ (A*の経路に最終目標点が含まれているため、これで完了)
-        START_X = self.coordinates["positions"]["standby_2a"][0]
-        
-        self.change_pose("look_at_near_floor")
         whole_body.move_to_go()
 
     def execute_task2b(self):

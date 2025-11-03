@@ -19,7 +19,7 @@
 
         "long_table_r_trayA": [1.82, 0.0, -90],
         "long_table_r_trayB": [1.63, 0.0, -90],
-        "long_table_r_containerA": [0.95, 0.0, -90],
+        "long_table_r_containerA": [0.98, 0.0, -90],
         "long_table_r_containerB": [1.25, 0.0, -90]
     },
     "routes": {
