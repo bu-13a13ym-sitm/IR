@@ -475,7 +475,7 @@ class WrsMainController(object):
 
         # target_personの前に持っていく
         self.change_pose("look_at_near_floor")
-        self.goto_name("person_b")    # TODO: 配達先が固定されているので修正
+        self.goto_name(target_person)    # TODO: 配達先が固定されているので修正
         self.change_pose("deliver_to_human")
         rospy.sleep(10.0)
         gripper.command(1)
