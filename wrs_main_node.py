@@ -72,8 +72,8 @@ class WrsMainController(object):
         self.grasp_try_cnt = {}
         self.trayA_cnt = 0
 
-        self.__class__.IGNORE_LIST.extend(self.shape)
-        self.__class__.IGNORE_LIST.extend(self.tool)
+        # self.__class__.IGNORE_LIST.extend(self.shape)
+        # self.__class__.IGNORE_LIST.extend(self.tool)
 
         # ROS通信関連の初期化
         tf_from_bbox_srv_name = "set_tf_from_bbox"
@@ -419,7 +419,10 @@ class WrsMainController(object):
 
     def pull_out_trofast(self, x, y, z, yaw, pitch, roll):
         # trofastの引き出しを引き出す
-        self.goto_name("stair_like_drawer")
+        if x < 0.2:
+            self.goto_name("stair_like_drawer")
+        else:
+            self.goto_name("drawer")
         self.change_pose("grasp_on_table")
         a = True  # TODO 不要な変数
         gripper.command(1)
@@ -427,7 +430,7 @@ class WrsMainController(object):
         whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
         gripper.command(0)
         whole_body.move_end_effector_pose(
-            x, y + self.TROFAST_Y_OFFSET * 1.2 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 1.9, z,
+            x, y + self.TROFAST_Y_OFFSET * 1.2 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 1.95, z,
             yaw,  pitch, roll
             )
         gripper.command(1)
@@ -800,11 +803,11 @@ class WrsMainController(object):
         task1を実行する
         """        
         rospy.loginfo("#### start Task 1 ####")
-        """
-        self.pull_out_trofast(0.175, -0.31, 0.285, -90, 100, 0)
-        self.pull_out_trofast(0.178, -0.31, 0.565, -90, 100, 0)
-        self.pull_out_trofast(0.50, -0.35, 0.285, -90, 100, 0)
-        """
+        
+        self.pull_out_trofast(0.168, -0.31, 0.288, -90, 100, 0)
+        self.pull_out_trofast(0.168, -0.31, 0.565, -90, 100, 0)
+        self.pull_out_trofast(0.50, -0.32, 0.288, -90, 100, 0)
+        
         hsr_position = [
             ("tall_table", "look_at_tall_table"),
             ("near_long_table_l", "look_at_near_floor"),
@@ -837,12 +840,14 @@ class WrsMainController(object):
                     label = "lego_duplo"
                 elif label == "sugar_box":
                     label = "rubiks_cube"
+                elif label == "spatula":
+                    label = "clamp"
                 grasp_bbox = graspable_obj["bbox"]
                 # TODO ラベル名を確認するためにコメントアウトを外す
                 rospy.loginfo("grasp the " + label)
                 if label in self.grasp_try_cnt.keys():
                     self.grasp_try_cnt[label] += 1
-                    if self.grasp_try_cnt[label] > 3:
+                    if self.grasp_try_cnt[label] >= 3:
                         self.__class__.IGNORE_LIST.append(label)
                         continue
                 else:
