@@ -838,12 +838,6 @@ class WrsMainController(object):
                     break
 
                 label = graspable_obj["label"]
-                if label == "large_market":
-                    label = "toy_airplane"
-                elif label == "plum":
-                    label = "colored_wood_blocks"
-                elif label == "master_chef_can":
-                    label = "tuna_fish_can"
                 grasp_bbox = graspable_obj["bbox"]
                 # TODO ラベル名を確認するためにコメントアウトを外す
                 rospy.loginfo("grasp the " + label)
