@@ -430,10 +430,14 @@ class WrsMainController(object):
         whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
         gripper.command(0)
         whole_body.move_end_effector_pose(
-            x, y + self.TROFAST_Y_OFFSET * 1.2 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 1.95, z,
+            x, y + self.TROFAST_Y_OFFSET * 1.2 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 1.9, z,
             yaw,  pitch, roll
             )
         gripper.command(1)
+        whole_body.move_end_effector_pose(
+            x, y + self.TROFAST_Y_OFFSET * 1.6 if z > 0.5 else y + self.TROFAST_Y_OFFSET * 2.3, z,
+            yaw,  pitch, roll
+            )
         self.change_pose("all_neutral")
 
     def push_in_trofast(self, pos_x, pos_y, pos_z, yaw, pitch, roll):
@@ -804,12 +808,12 @@ class WrsMainController(object):
         """        
         rospy.loginfo("#### start Task 1 ####")
         
-        self.pull_out_trofast(0.168, -0.31, 0.288, -90, 100, 0)
-        self.pull_out_trofast(0.168, -0.31, 0.565, -90, 100, 0)
+        self.pull_out_trofast(0.15, -0.3, 0.288, -90, 100, 0)
+        self.pull_out_trofast(0.15, -0.31, 0.565, -90, 100, 0)
         self.pull_out_trofast(0.50, -0.32, 0.288, -90, 100, 0)
         
         hsr_position = [
-            ("tall_table", "look_at_tall_table"),
+            #("tall_table", "look_at_tall_table"),
             ("near_long_table_l", "look_at_near_floor"),
             ("floor_nearby_long_table_r", "look_at_floor_nearby_long_table_r"),
             ("long_table_r", "look_at_long_table_r")
@@ -860,9 +864,9 @@ class WrsMainController(object):
                 self.change_pose("all_neutral")
 
                 if label in self.shape:
-                    self.put_in_place("drawer", "put_in_drawer_left")
+                    self.put_in_place("drawer_left", "put_in_drawer_left")
                 elif label in self.tool:
-                    self.put_in_place("stair_like_drawer", "put_in_drawer_bottom")
+                    self.put_in_place("drawer_bottom", "put_in_drawer_bottom")
                 elif label in self.food:
                     if label in self.grasp_try_cnt.keys():
                         self.trayA_cnt -= 1
