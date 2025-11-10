@@ -38,7 +38,7 @@ class WrsMainController(object):
     """
     WRSのシミュレーション環境内でタスクを実行するクラス
     """
-    IGNORE_LIST = []
+    IGNORE_LIST = ["large_marker", "small_marker"]
     GRASP_TF_NAME = "object_grasping"
     GRASP_BACK_SAFE = {"z": 0.05, "xy": 0.3}
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
@@ -813,9 +813,9 @@ class WrsMainController(object):
         self.pull_out_trofast(0.50, -0.32, 0.288, -90, 100, 0)
         
         hsr_position = [
-            #("tall_table", "look_at_tall_table"),
             ("near_long_table_l", "look_at_near_floor"),
             ("floor_nearby_long_table_r", "look_at_floor_nearby_long_table_r"),
+            ("tall_table", "look_at_tall_table"),
             ("long_table_r", "look_at_long_table_r")
         ]
 
@@ -866,7 +866,7 @@ class WrsMainController(object):
                 if label in self.shape:
                     self.put_in_place("drawer_left", "put_in_drawer_left")
                 elif label in self.tool:
-                    self.put_in_place("drawer_bottom", "put_in_drawer_bottom")
+                    self.put_in_place("bin_b_place", "put_in_bin")
                 elif label in self.food:
                     if label in self.grasp_try_cnt.keys():
                         self.trayA_cnt -= 1

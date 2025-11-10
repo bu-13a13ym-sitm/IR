@@ -17,12 +17,12 @@
         "person_b": [0.7, 3.9, 180],
         "home": [0, 0.2, 0],
 
-        "long_table_r_trayA": [1.82, 0.0, -90],
+        "long_table_r_trayA": [1.88, 0.0, -90],
         "long_table_r_trayB": [1.63, 0.0, -90],
-        "long_table_r_containerA": [1.02, 0.001, -90],
-        "long_table_r_containerB": [1.25, 0.001, -90],
-        "drawer_bottom": [0.155, 0.1, -90],
-        "drawer_left": [0.6, 0.1, -90]
+        "long_table_r_containerA": [1.10, -0.05, -90],
+        "long_table_r_containerB": [1.25, -0.05, -90],
+        "drawer_bottom": [0.155, 0.12, -90],
+        "drawer_left": [0.5, 0.13, -90]
     },
     "routes": {
         "test": [
