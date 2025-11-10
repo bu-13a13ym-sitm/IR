@@ -813,9 +813,9 @@ class WrsMainController(object):
         self.pull_out_trofast(0.50, -0.32, 0.288, -90, 100, 0)
         
         hsr_position = [
-            #("tall_table", "look_at_tall_table"),
             ("near_long_table_l", "look_at_near_floor"),
             ("floor_nearby_long_table_r", "look_at_floor_nearby_long_table_r"),
+            ("tall_table", "look_at_tall_table"),
             ("long_table_r", "look_at_long_table_r")
         ]
 
