@@ -758,6 +758,7 @@ class WrsMainController:
                     rospy.logwarn("Cannot determine object to grasp. Grasping is aborted.")
                     break
 
+                # ハルシネーションの修正
                 label = graspable_obj["label"]
                 if label == "tuna_fish_can":
                     label = "bowl"
@@ -767,6 +768,12 @@ class WrsMainController:
                     label = "rubiks_cube"
                 elif label == "spatula":
                     label = "clamp"
+                elif label == "large_market":
+                    label = "toy_airplane"
+                elif label == "plum":
+                    label = "colored_wood_blocks"
+                elif label == "master_chef_can":
+                    label = "tuna_fish_can"
                 grasp_bbox = graspable_obj["bbox"]
                 rospy.loginfo("grasp the " + label)
                 if label in self.grasp_try_cnt:
